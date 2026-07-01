@@ -6,10 +6,15 @@ they call the flat /api/posts and get 404. Marky nests posts under the business:
     POST/GET  /api/businesses/{business_id}/posts
 and business_id must be in the PATH only (putting it in the body -> 422).
 
-DRAFT-ONLY: create_draft() always uses status "NEW" (unscheduled). It never schedules
-or publishes. Do NOT add adhoc_publish_time here — scheduling stays a manual Shahar step.
+create_draft() makes an unscheduled NEW draft. create_scheduled() (approved by Shahar
+2026-07-01 as the new standard) schedules the post to a given Israel-local slot so each
+week's posts land on the right Sun 19:30 / Tue 15:00 / Thu 15:00 automatically.
+Schedule field is "scheduled_publish_time" (ISO-8601 UTC) with status "SCHEDULED"
+(NOT "adhoc_publish_time" — that is the broken MCP's field name and is rejected here).
 """
 import json, urllib.request
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 KEY_FILE = r"C:/Users/Shahar Tabib/OneDrive - Sliceknowledge.com/Slice/שיווק סלייס/כלי שיווק/Marky API.txt"
 BUSINESS_ID = "e1db849d-f9c8-410d-ac24-ddf45f0f8ea6"   # Slice Knowledge Transfer
@@ -32,11 +37,27 @@ def create_draft(caption, platform, media_url=None, business_id=BUSINESS_ID):
         body["media_urls"] = [media_url]
     return _req(f"/api/businesses/{business_id}/posts", "POST", body)   # id in PATH only, NOT in body
 
-def list_drafts(status="NEW", business_id=BUSINESS_ID):
-    return _req(f"/api/businesses/{business_id}/posts?status={status}")
+def il_to_utc_iso(year, month, day, hour, minute):
+    """Israel local wall-clock -> ISO-8601 UTC (handles IDT/IST DST via zoneinfo)."""
+    dt = datetime(year, month, day, hour, minute, tzinfo=ZoneInfo("Asia/Jerusalem"))
+    return dt.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def create_scheduled(caption, platform, when_il, media_url=None, business_id=BUSINESS_ID):
+    """Create a post SCHEDULED to an Israel-local slot.
+    when_il = (year, month, day, hour, minute) in Asia/Jerusalem, e.g. (2026,7,5,19,30).
+    Standard slots: FB Sun 19:30, LinkedIn Tue & Thu 15:00 (Israel time)."""
+    body = {"caption": caption, "publish_to": [platform], "status": "SCHEDULED",
+            "scheduled_publish_time": il_to_utc_iso(*when_il)}   # field is scheduled_publish_time, NOT adhoc_publish_time
+    if media_url:
+        body["media_urls"] = [media_url]
+    return _req(f"/api/businesses/{business_id}/posts", "POST", body)   # id in PATH only, NOT in body
+
+def list_posts(status=None, business_id=BUSINESS_ID):
+    q = f"?status={status}" if status else "?limit=20"
+    return _req(f"/api/businesses/{business_id}/posts{q}")
 
 if __name__ == "__main__":
-    d = list_drafts()
+    d = list_posts("NEW")
     rows = d.get("data", d if isinstance(d, list) else [])
     print(f"{len(rows)} NEW draft(s):")
     for p in rows[:20]:
