@@ -31,10 +31,12 @@ def _req(path, method="GET", body=None):
     return json.loads(urllib.request.urlopen(req, timeout=60).read())
 
 def create_draft(caption, platform, media_url=None, business_id=BUSINESS_ID):
-    """Create an UNSCHEDULED draft (status NEW). Returns the API response (incl. new post id)."""
-    body = {"caption": caption, "publish_to": [platform], "status": "NEW"}  # NEW = draft; never schedule/publish
+    """Create an UNSCHEDULED draft (status NEW). Returns the API response (incl. new post id).
+    media_url may be a single URL (str) or a list of URLs (carousel; order preserved)."""
+    # API field is restrict_publish_to (NOT publish_to — that 422s "Extra inputs are not permitted", changed ~2026-07-03).
+    body = {"caption": caption, "restrict_publish_to": [platform], "status": "NEW"}  # NEW = draft; never schedule/publish
     if media_url:
-        body["media_urls"] = [media_url]
+        body["media_urls"] = media_url if isinstance(media_url, list) else [media_url]
     return _req(f"/api/businesses/{business_id}/posts", "POST", body)   # id in PATH only, NOT in body
 
 def il_to_utc_iso(year, month, day, hour, minute):
@@ -46,10 +48,10 @@ def create_scheduled(caption, platform, when_il, media_url=None, business_id=BUS
     """Create a post SCHEDULED to an Israel-local slot.
     when_il = (year, month, day, hour, minute) in Asia/Jerusalem, e.g. (2026,7,5,19,30).
     Standard slots: FB Sun 19:30, LinkedIn Tue & Thu 15:00 (Israel time)."""
-    body = {"caption": caption, "publish_to": [platform], "status": "SCHEDULED",
+    body = {"caption": caption, "restrict_publish_to": [platform], "status": "SCHEDULED",
             "scheduled_publish_time": il_to_utc_iso(*when_il)}   # field is scheduled_publish_time, NOT adhoc_publish_time
     if media_url:
-        body["media_urls"] = [media_url]
+        body["media_urls"] = media_url if isinstance(media_url, list) else [media_url]
     return _req(f"/api/businesses/{business_id}/posts", "POST", body)   # id in PATH only, NOT in body
 
 def list_posts(status=None, business_id=BUSINESS_ID):
