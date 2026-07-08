@@ -54,6 +54,13 @@ def create_scheduled(caption, platform, when_il, media_url=None, business_id=BUS
         body["media_urls"] = media_url if isinstance(media_url, list) else [media_url]
     return _req(f"/api/businesses/{business_id}/posts", "POST", body)   # id in PATH only, NOT in body
 
+def update_post(post_id, business_id=BUSINESS_ID, **fields):
+    """PATCH an existing post in place (schedule/status preserved). Verified working 2026-07-08.
+    Common use: update_post(pid, caption=<new text>) to edit a scheduled post's caption without
+    re-creating it (which would change the id and drop the schedule). Endpoint: PATCH the nested
+    /api/businesses/{id}/posts/{post_id}. Only pass the fields you want changed (e.g. caption, media_urls)."""
+    return _req(f"/api/businesses/{business_id}/posts/{post_id}", "PATCH", fields)   # id in PATH; PATCH not PUT
+
 def list_posts(status=None, business_id=BUSINESS_ID):
     q = f"?status={status}" if status else "?limit=20"
     return _req(f"/api/businesses/{business_id}/posts{q}")
